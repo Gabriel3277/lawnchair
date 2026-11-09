@@ -263,8 +263,10 @@ public class BaseDepthControllerImpl implements BaseDepthController {
         }
 
         int previousBlur = mCurrentBlur;
-        int newBlur = BlurUtils.supportsBlursOnWindows() && mCrossWindowBlursEnabled
-                && !hasOpaqueBg && !mPauseBlurs
+        // MOD: o blur interno (RenderEffect) nao depende do blur de janelas do sistema,
+        // entao calculamos o raio mesmo em aparelhos sem suporte (ex.: Moto G04s).
+        boolean windowBlur = BlurUtils.supportsBlursOnWindows() && mCrossWindowBlursEnabled;
+        int newBlur = (windowBlur || Utilities.ATLEAST_S) && !hasOpaqueBg && !mPauseBlurs
                 ? (int) (blurAmount * mMaxBlurRadius) : 0;
         int delta = Math.abs(newBlur - previousBlur);
         boolean skipUpdate = skipSimilarBlur && delta < Utilities.dpToPx(1) && newBlur != 0
@@ -312,7 +314,8 @@ public class BaseDepthControllerImpl implements BaseDepthController {
             if (blurSurface == null || !blurSurface.isValid()) {
                 return;
             }
-            finalTransaction.setBackgroundBlurRadius(blurSurface, mCurrentBlur)
+            // MOD: so aplica blur de janela se o sistema suportar.
+            finalTransaction.setBackgroundBlurRadius(blurSurface, windowBlur ? mCurrentBlur : 0)
                     .setOpaque(blurSurface, isSurfaceOpaque);
 
             boolean wantsEarlyWakeUp = blurAmount > 0 && blurAmount < 1;
@@ -384,8 +387,8 @@ public class BaseDepthControllerImpl implements BaseDepthController {
         // Stuck-blur bug: AllAppsState.shouldBlurWorkspace(NORMAL) is true during close, and a
         // skipped/interrupted apply can leave RenderEffect on workspace/hotseat icons after home
         // is settled. Always clear once we are on NORMAL with no active transition, or depth is 0.
-        if (!Flags.allAppsBlur()
-                || mDepth <= 0f
+        // MOD: removida a condicao !Flags.allAppsBlur() para o blur interno funcionar sempre.
+        if (mDepth <= 0f
                 || mCurrentBlur <= 0
                 || (settledState == LauncherState.NORMAL && !stateManager.isInTransition())) {
             clearWorkspaceRenderEffects();
@@ -515,6 +518,7 @@ public class BaseDepthControllerImpl implements BaseDepthController {
     private static float mapDepthToBlur(float depth) {
         return Interpolators.clampToProgress(depth, 0, 0.3f);
     }
+
     private SurfaceControl.Transaction createTransaction() {
         return new SurfaceControl.Transaction();
     }
