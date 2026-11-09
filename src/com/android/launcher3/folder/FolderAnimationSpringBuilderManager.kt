@@ -15,8 +15,13 @@
  */
 package com.android.launcher3.folder
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
+import android.animation.ValueAnimator
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.view.View
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.LauncherAnimUtils.HOTSEAT_SCALE_PROPERTY_FACTORY
@@ -52,17 +57,83 @@ class FolderAnimationSpringBuilderManager(
         val folderAnimData: FolderAnimationData = folder.getAnimationData(isOpening)
         val clipRevealData: ClipRevealData = folder.getClipRevealData(shapeDelegate, folderAnimData)
         val iconAnimData: List<IconAnimationData> = folder.getIconAnimationDataList(folderAnimData)
-        return FolderSpringAnimatorSet.build(
-                folder = folder,
-                launcherDelegate = launcherDelegate,
-                folderAnimData = folderAnimData,
-                clipRevealData = clipRevealData,
-                iconAnimData = iconAnimData,
-            )
-            .animatorSet
+        val animatorSet =
+            FolderSpringAnimatorSet.build(
+                    folder = folder,
+                    launcherDelegate = launcherDelegate,
+                    folderAnimData = folderAnimData,
+                    clipRevealData = clipRevealData,
+                    iconAnimData = iconAnimData,
+                )
+                .animatorSet
+        addBackgroundBlur(animatorSet, isOpening)
+        return animatorSet
+    }
+
+    /**
+     * MOD: blur do fundo (workspace/hotseat) enquanto a pasta esta aberta. A pasta fica fora dos
+     * alvos de blur.
+     */
+    private fun addBackgroundBlur(animatorSet: AnimatorSet, isOpening: Boolean) {
+        if (!Utilities.ATLEAST_S) return
+        val launcher = launcherDelegate.launcher ?: return
+        val maxRadius = Utilities.dpToPx(FOLDER_BG_BLUR_DP).toFloat()
+
+        val applyBlur = { progress: Float ->
+            val radius = progress * maxRadius
+            val effect = if (radius < 1f) null else RenderEffect.createBlurEffect(radius, radius, Shader.TileMode.DECAL)
+            for (target in launcher.depthBlurTargets) {
+                target.setRenderEffect(effect)
+            }
+        }
+
+        // Rede de seguranca: se a pasta sair da janela, solta e limpa o blur.
+        val detachListener =
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {}
+
+                override fun onViewDetachedFromWindow(v: View) {
+                    folderBlurActive = false
+                    applyBlur(0f)
+                    v.removeOnAttachStateChangeListener(this)
+                }
+            }
+
+        val blurAnimator =
+            if (isOpening) ValueAnimator.ofFloat(0f, 1f) else ValueAnimator.ofFloat(1f, 0f)
+        blurAnimator.duration = BLUR_DURATION_MS
+        blurAnimator.addUpdateListener { applyBlur(it.animatedValue as Float) }
+        animatorSet.play(blurAnimator)
+
+        animatorSet.addListener(
+            object : AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: Animator) {
+                    folderBlurActive = true
+                    if (isOpening) {
+                        folder.removeOnAttachStateChangeListener(detachListener)
+                        folder.addOnAttachStateChangeListener(detachListener)
+                    }
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (isOpening) {
+                        applyBlur(1f)
+                    } else {
+                        folderBlurActive = false
+                        applyBlur(0f)
+                    }
+                }
+            }
+        )
     }
 
     companion object {
+        private const val FOLDER_BG_BLUR_DP = 10f
+        private const val BLUR_DURATION_MS = 250L
+
+        /** MOD: true enquanto a pasta esta aberta; o DepthController nao apaga o blur. */
+        @JvmField var folderBlurActive: Boolean = false
+
         /** Resets the scale of the launcher workspace. Used to prepare for folder calculations. */
         @JvmStatic
         fun resetLauncherScale(launcherDelegate: LauncherDelegate) {
