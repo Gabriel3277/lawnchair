@@ -6,17 +6,17 @@ import android.content.Intent
 import android.provider.Settings
 import android.view.ViewGroup
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -28,6 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,7 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathParser
@@ -183,7 +183,7 @@ fun WelcomeScreen(onContinue: () -> Unit) {
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Chip { Ico(Color.White, 20.dp) { drawHandset(Color.White) } }
             Chip { Box(Modifier.size(10.dp).clip(CircleShape).background(Color.White)) }
@@ -221,7 +221,7 @@ fun WelcomeScreen(onContinue: () -> Unit) {
                 .navigationBarsPadding()
                 .fillMaxWidth()
                 .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Pill(
                 modifier = Modifier.weight(0.36f),
@@ -280,7 +280,6 @@ private fun Ico(color: Color, size: Dp, draw: DrawScope.() -> Unit) {
 }
 
 private fun DrawScope.drawArrow(c: Color) {
-    val s = Stroke(width = 2.2f, cap = StrokeCap.Round)
     drawLine(c, Offset(4f, 12f), Offset(20f, 12f), 2.2f, StrokeCap.Round)
     drawLine(c, Offset(14f, 6f), Offset(20f, 12f), 2.2f, StrokeCap.Round)
     drawLine(c, Offset(20f, 12f), Offset(14f, 18f), 2.2f, StrokeCap.Round)
