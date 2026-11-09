@@ -28,9 +28,12 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.TimeInterpolator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
 import android.util.Property;
 import android.view.View;
@@ -42,6 +45,7 @@ import androidx.annotation.NonNull;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.CellLayout;
 import com.android.launcher3.DeviceProfile;
+import com.android.launcher3.Launcher;
 import com.android.launcher3.R;
 import com.android.launcher3.ShortcutAndWidgetContainer;
 import com.android.launcher3.Utilities;
@@ -69,6 +73,9 @@ public class FolderAnimationManager implements FolderAnimationCreator {
     private static final int FOLDER_NAME_ALPHA_DURATION = 32;
     private static final int LARGE_FOLDER_FOOTER_DURATION = 128;
 
+    // MOD: raio do blur do fundo (workspace/hotseat) enquanto a pasta esta aberta.
+    private static final float FOLDER_BG_BLUR_DP = 10f;
+
     private Folder mFolder;
     private FolderPagedView mContent;
     private GradientDrawable mFolderBackground;
@@ -94,6 +101,9 @@ public class FolderAnimationManager implements FolderAnimationCreator {
     private ObjectAnimator mBgColorAnimator;
 
     private DeviceProfile mDeviceProfile;
+
+    // MOD: rede de seguranca para nunca deixar o blur preso se a pasta sair da tela.
+    private View.OnAttachStateChangeListener mBlurDetachListener;
 
     public FolderAnimationManager(Folder folder) {
         mFolder = folder;
@@ -131,12 +141,54 @@ public class FolderAnimationManager implements FolderAnimationCreator {
     }
 
     /**
+     * MOD: aplica blur (0 a 1) no workspace e no hotseat. A pasta fica fora desses alvos.
+     */
+    private void setBackgroundBlur(float progress) {
+        if (!Utilities.ATLEAST_S) {
+            return;
+        }
+        if (!(mFolder.mActivityContext instanceof Launcher)) {
+            return;
+        }
+        Launcher launcher = (Launcher) mFolder.mActivityContext;
+        float radius = progress * Utilities.dpToPx(FOLDER_BG_BLUR_DP);
+        RenderEffect effect = radius < 1f
+                ? null
+                : RenderEffect.createBlurEffect(radius, radius, Shader.TileMode.DECAL);
+        for (View target : launcher.getDepthBlurTargets()) {
+            target.setRenderEffect(effect);
+        }
+    }
+
+    /**
+     * MOD: se a pasta sair da janela (fechou sem animacao), limpa o blur.
+     */
+    private void watchFolderDetach() {
+        if (mBlurDetachListener != null) {
+            return;
+        }
+        mBlurDetachListener = new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View v) { }
+
+            @Override
+            public void onViewDetachedFromWindow(View v) {
+                setBackgroundBlur(0f);
+                v.removeOnAttachStateChangeListener(this);
+                mBlurDetachListener = null;
+            }
+        };
+        mFolder.addOnAttachStateChangeListener(mBlurDetachListener);
+    }
+
+    /**
      * Prepares the Folder for animating between open / closed states.
      */
     @NonNull
     @Override
     public AnimatorSet createAnimatorSet(boolean isOpening) {
         mIsOpening = isOpening;
+        final boolean opening = isOpening;
         final BaseDragLayer.LayoutParams lp =
                 (BaseDragLayer.LayoutParams) mFolder.getLayoutParams();
         mFolderIcon.getPreviewItemManager().recomputePreviewDrawingParams();
@@ -283,6 +335,13 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         Animator z = getAnimator(mFolder, View.TRANSLATION_Z, -mFolder.getElevation(), 0);
         play(a, z, mIsOpening ? midDuration : 0, midDuration);
 
+        // MOD: blur do fundo (workspace/hotseat) junto com a animacao da pasta.
+        ValueAnimator bgBlur = opening
+                ? ValueAnimator.ofFloat(0f, 1f)
+                : ValueAnimator.ofFloat(1f, 0f);
+        bgBlur.addUpdateListener(anim -> setBackgroundBlur((Float) anim.getAnimatedValue()));
+        play(a, bgBlur);
+
         // Store clip variables.
         // Because {@link #onAnimationStart} and {@link #onAnimationEnd} callbacks are sent to
         // message queue and executed on separate frame, we should save states in
@@ -316,6 +375,11 @@ public class FolderAnimationManager implements FolderAnimationCreator {
                 mContent.setClipToPadding(false);
                 mCellLayout.setClipChildren(false);
                 mCellLayout.setClipToPadding(false);
+
+                // MOD
+                if (opening) {
+                    watchFolderDetach();
+                }
             }
 
             @Override
@@ -337,6 +401,11 @@ public class FolderAnimationManager implements FolderAnimationCreator {
                 mContent.setClipToPadding(mContentClipToPadding);
                 mCellLayout.setClipChildren(mCellLayoutClipChildren);
                 mCellLayout.setClipToPadding(mCellLayoutClipPadding);
+
+                // MOD: ao terminar de fechar, tira o blur do fundo.
+                if (!opening) {
+                    setBackgroundBlur(0f);
+                }
             }
         });
 
