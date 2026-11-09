@@ -537,6 +537,7 @@ sealed class IconShape {
             "roundedhexagon" -> RoundedHexagon
             "stretched" -> Stretched
             "vessel" -> Vessel
+            "scallop" -> Scallop
             "" -> null
             else -> CustomCornerBased.fromStringOrNull(value)
         }
