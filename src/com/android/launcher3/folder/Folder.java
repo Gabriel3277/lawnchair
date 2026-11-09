@@ -973,7 +973,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     private FolderAnimationCreator getFolderAnimationManager() {
         boolean shouldUseSpringMotion = Flags.enableLauncherIconShapes()
-                && false;
+                && Flags.enableExpressiveFolderExpansion();
         if (shouldUseSpringMotion) {
             ShapeDelegate shapeDelegate =
                     ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
