@@ -74,9 +74,8 @@ public class DepthController extends BaseDepthControllerImpl implements StateHan
 
     public DepthController(QuickstepLauncher launcher) {
         super(launcher);
-        var prefs = PreferenceManager2.getInstance(launcher);
-        var pref = prefs.getWallpaperDepthEffect();
-        mEnableDepth = PreferenceCacheExtensionsKt.firstCached(pref);
+        // MOD: efeito de profundidade sempre ligado (a opcao nao aparece nas configuracoes).
+        mEnableDepth = true;
     }
 
     private void onLauncherDraw() {
