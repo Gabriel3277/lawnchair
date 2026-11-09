@@ -247,6 +247,8 @@ class LawnchairLauncher : QuickstepLauncher() {
 
         showQuickstepWarningIfNecessary()
 
+        app.lawnchair.ui.welcome.showWelcomeIfFirstRun(this)
+
         reloadIconsIfNeeded()
 
         AppDatabase.INSTANCE.get(this).checkpointSync()
