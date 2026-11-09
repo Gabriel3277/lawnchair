@@ -64,6 +64,19 @@ public class QsbContainerView extends FrameLayout {
 
     public static final String SEARCH_ENGINE_SETTINGS_KEY = "selected_search_engine";
 
+    // MOD: pacote do app Pixel Search. Se estiver instalado, o widget dele substitui o da busca.
+    public static final String PIXEL_SEARCH_PACKAGE = "rk.android.app.pixelsearch";
+
+    // MOD: true se o pacote tem pelo menos um widget instalado.
+    private static boolean hasWidgets(@NonNull Context context, @NonNull String pkg) {
+        try {
+            return !AppWidgetManager.getInstance(context)
+                    .getInstalledProvidersForPackage(pkg, null).isEmpty();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     /**
      * Returns the package name for user configured search provider or from searchManager
      * @param context
@@ -96,24 +109,51 @@ public class QsbContainerView extends FrameLayout {
     }
 
     public static AppWidgetProviderInfo getSearchWidgetProviderInfo(@NonNull Context context, String providerPkg) {
+        // MOD: se o Pixel Search estiver instalado, usa o widget dele no lugar do widget original.
+        if (hasWidgets(context, PIXEL_SEARCH_PACKAGE)) {
+            providerPkg = PIXEL_SEARCH_PACKAGE;
+        }
         if (providerPkg == null) {
             return null;
         }
+        boolean isPixelSearch = PIXEL_SEARCH_PACKAGE.equals(providerPkg);
 
         AppWidgetProviderInfo defaultWidgetForSearchPackage = null;
+        AppWidgetProviderInfo labelMatch = null;
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         for (AppWidgetProviderInfo info :
                 appWidgetManager.getInstalledProvidersForPackage(providerPkg, null)) {
-            if (info.provider.getPackageName().equals(providerPkg) && info.configure == null) {
-                if ((info.widgetCategory
-                        & AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0) {
-                    return info;
-                } else if (defaultWidgetForSearchPackage == null) {
-                    defaultWidgetForSearchPackage = info;
+            if (!info.provider.getPackageName().equals(providerPkg)) {
+                continue;
+            }
+            // MOD: o Pixel Search pode ter tela de configuracao; nao descartar o widget por isso.
+            if (info.configure != null && !isPixelSearch) {
+                continue;
+            }
+            if ((info.widgetCategory
+                    & AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX) != 0) {
+                return info;
+            }
+            if (isPixelSearch && labelMatch == null) {
+                // MOD: prefere o widget cujo nome indica pesquisa.
+                try {
+                    String label = info.loadLabel(context.getPackageManager());
+                    if (label != null) {
+                        String l = label.toLowerCase(java.util.Locale.ROOT);
+                        if (l.contains("search") || l.contains("pesquis")
+                                || l.contains("busca")) {
+                            labelMatch = info;
+                        }
+                    }
+                } catch (Throwable t) {
+                    // ignorado
                 }
             }
+            if (defaultWidgetForSearchPackage == null) {
+                defaultWidgetForSearchPackage = info;
+            }
         }
-        return defaultWidgetForSearchPackage;
+        return labelMatch != null ? labelMatch : defaultWidgetForSearchPackage;
     }
 
     /**
