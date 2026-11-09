@@ -414,6 +414,7 @@ public class BaseDepthControllerImpl implements BaseDepthController {
      * icon blur without going through SurfaceControl apply.
      */
     public void clearWorkspaceRenderEffects() {
+        if (com.android.launcher3.folder.FolderAnimationSpringBuilderManager.folderBlurActive) { return; }
         if (!Utilities.ATLEAST_S) {
             return;
         }
