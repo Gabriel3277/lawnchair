@@ -26,10 +26,18 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Refresh
@@ -46,8 +54,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,11 +72,9 @@ import app.lawnchair.preferences2.firstCached
 import app.lawnchair.preferences2.preferenceManager2
 import app.lawnchair.ui.OverflowMenuGrouped
 import app.lawnchair.ui.preferences.components.AnnouncementPreference
-import app.lawnchair.ui.preferences.components.controls.PreferenceCategory
 import app.lawnchair.ui.preferences.components.controls.WarningPreference
 import app.lawnchair.ui.preferences.components.layout.ClickableIcon
 import app.lawnchair.ui.preferences.components.layout.ExpandAndShrink
-import app.lawnchair.ui.preferences.components.layout.PreferenceGroup
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayout
 import app.lawnchair.ui.preferences.components.layout.PreferenceTemplate
 import app.lawnchair.ui.preferences.components.layout.ProvideDescriptionTextStyle
@@ -92,6 +100,103 @@ import com.android.launcher3.BuildConfig
 import com.android.launcher3.R
 import com.android.launcher3.util.MSDLPlayerWrapper
 import com.google.android.msdl.data.model.MSDLToken
+
+/** Dados de uma linha da tela de configurações. */
+private class DashItem(
+    val label: String,
+    val description: String,
+    val iconRes: Int,
+    val route: PreferenceRootRoute,
+    val selected: Boolean,
+    val visible: Boolean = true,
+)
+
+/** Pares (fundo do círculo, cor do ícone) em tons pastel. */
+private val circlePalette = listOf(
+    0xFF8FD0F2L to 0xFF0B3A52L,
+    0xFFA9C7FFL to 0xFF0C2D6BL,
+    0xFFB8E6C4L to 0xFF0F4A25L,
+    0xFFF5C2E7L to 0xFF5A1B46L,
+    0xFFFFD9A8L to 0xFF6A3B00L,
+    0xFFC9B8FFL to 0xFF2B1A6BL,
+)
+
+/** Cantos grandes nas pontas do grupo e pequenos no meio. */
+private fun groupShape(index: Int, count: Int): RoundedCornerShape {
+    val big = 24.dp
+    val small = 6.dp
+    return when {
+        index < 0 -> RoundedCornerShape(small)
+        count <= 1 -> RoundedCornerShape(big)
+        index == 0 -> RoundedCornerShape(topStart = big, topEnd = big, bottomStart = small, bottomEnd = small)
+        index == count - 1 -> RoundedCornerShape(topStart = small, topEnd = small, bottomStart = big, bottomEnd = big)
+        else -> RoundedCornerShape(small)
+    }
+}
+
+@Composable
+private fun ExpressiveGroup(
+    items: List<DashItem>,
+    colorOffset: Int,
+    onNavigate: (PreferenceRootRoute) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val visibleItems = items.filter { it.visible }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+    ) {
+        items.forEachIndexed { i, item ->
+            ExpandAndShrink(visible = item.visible) {
+                val shape = groupShape(visibleItems.indexOf(item), visibleItems.size)
+                val colors = circlePalette[(colorOffset + i) % circlePalette.size]
+                val container = if (item.selected) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                }
+                Row(
+                    modifier = Modifier
+                        .padding(bottom = 2.dp)
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .background(container)
+                        .clickable { onNavigate(item.route) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(colors.first)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(id = item.iconRes),
+                            contentDescription = null,
+                            tint = Color(colors.second),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.label,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = item.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun PreferencesDashboard(
@@ -130,104 +235,106 @@ fun PreferencesDashboard(
         }
 
         val deckLayout = prefs2.deckLayout.getAdapter()
-        PreferenceGroup {
-            PreferenceCategory(
+        val isSmartspaceEnabled = prefs2.enableSmartspace.firstCached()
+
+        val groupMain = listOf(
+            DashItem(
                 label = stringResource(R.string.general_label),
                 description = stringResource(R.string.general_description),
-                iconResource = R.drawable.ic_general,
-                onNavigate = { onNavigate(General) },
-                isSelected = currentRoute is General,
-            )
-
-            PreferenceCategory(
+                iconRes = R.drawable.ic_general,
+                route = General,
+                selected = currentRoute is General,
+            ),
+            DashItem(
                 label = stringResource(R.string.home_screen_label),
                 description = stringResource(R.string.home_screen_description),
-                iconResource = R.drawable.ic_home_screen,
-                onNavigate = { onNavigate(HomeScreen) },
-                isSelected = currentRoute is HomeScreen,
-            )
-
-            val isSmartspaceEnabled = prefs2.enableSmartspace.firstCached()
-            PreferenceCategory(
+                iconRes = R.drawable.ic_home_screen,
+                route = HomeScreen,
+                selected = currentRoute is HomeScreen,
+            ),
+            DashItem(
                 label = stringResource(id = R.string.smartspace_widget),
                 description = stringResource(R.string.smartspace_widget_description),
-                iconResource = if (isSmartspaceEnabled) R.drawable.ic_smartspace else R.drawable.ic_smartspace_off,
-                onNavigate = { onNavigate(Smartspace) },
-                isSelected = currentRoute is Smartspace,
-            )
+                iconRes = if (isSmartspaceEnabled) R.drawable.ic_smartspace else R.drawable.ic_smartspace_off,
+                route = Smartspace,
+                selected = currentRoute is Smartspace,
+            ),
+        )
 
-            PreferenceCategory(
+        val groupLayout = listOf(
+            DashItem(
                 label = stringResource(R.string.dock_label),
                 description = stringResource(R.string.dock_description),
-                iconResource = R.drawable.ic_dock,
-                onNavigate = { onNavigate(Dock) },
-                isSelected = currentRoute is Dock,
-            )
-
-            ExpandAndShrink(
+                iconRes = R.drawable.ic_dock,
+                route = Dock,
+                selected = currentRoute is Dock,
+            ),
+            DashItem(
+                label = stringResource(R.string.app_drawer_label),
+                description = stringResource(R.string.app_drawer_description),
+                iconRes = R.drawable.ic_apps,
+                route = AppDrawer,
+                selected = currentRoute is AppDrawer,
                 visible = !deckLayout.state.value,
-            ) {
-                PreferenceCategory(
-                    label = stringResource(R.string.app_drawer_label),
-                    description = stringResource(R.string.app_drawer_description),
-                    iconResource = R.drawable.ic_apps,
-                    onNavigate = { onNavigate(AppDrawer) },
-                    isSelected = currentRoute is AppDrawer,
-                )
-            }
-
-            PreferenceCategory(
+            ),
+            DashItem(
                 label = stringResource(R.string.search_bar_label),
                 description = stringResource(R.string.drawer_search_description),
-                iconResource = R.drawable.ic_search,
-                onNavigate = { onNavigate(Search()) },
-                isSelected = currentRoute is Search,
-            )
-
-            PreferenceCategory(
+                iconRes = R.drawable.ic_search,
+                route = Search(),
+                selected = currentRoute is Search,
+            ),
+            DashItem(
                 label = stringResource(R.string.folders_label),
                 description = stringResource(R.string.folders_description),
-                iconResource = R.drawable.ic_folder,
-                onNavigate = { onNavigate(Folders) },
-                isSelected = currentRoute is Folders,
-            )
+                iconRes = R.drawable.ic_folder,
+                route = Folders,
+                selected = currentRoute is Folders,
+            ),
+        )
 
-            PreferenceCategory(
+        val groupBehavior = listOf(
+            DashItem(
                 label = stringResource(id = R.string.gestures_label),
                 description = stringResource(R.string.gestures_description),
-                iconResource = R.drawable.ic_gestures,
-                onNavigate = { onNavigate(Gestures) },
-                isSelected = currentRoute is Gestures,
-            )
-
-            ExpandAndShrink(
+                iconRes = R.drawable.ic_gestures,
+                route = Gestures,
+                selected = currentRoute is Gestures,
+            ),
+            DashItem(
+                label = stringResource(id = R.string.quickstep_label),
+                description = stringResource(id = R.string.quickstep_description),
+                iconRes = R.drawable.ic_quickstep,
+                route = Quickstep,
+                selected = currentRoute is Quickstep,
                 visible = LawnchairApp.isRecentsEnabled || BuildConfig.DEBUG,
-            ) {
-                PreferenceCategory(
-                    label = stringResource(id = R.string.quickstep_label),
-                    description = stringResource(id = R.string.quickstep_description),
-                    iconResource = R.drawable.ic_quickstep,
-                    onNavigate = { onNavigate(Quickstep) },
-                    isSelected = currentRoute is Quickstep,
-                )
-            }
+            ),
+        )
 
-            PreferenceCategory(
+        val groupOther = listOf(
+            DashItem(
                 label = stringResource(R.string.backup_and_restore_label),
                 description = stringResource(R.string.backup_and_restore_description),
-                iconResource = R.drawable.backup_restore,
-                onNavigate = { onNavigate(BackupAndRestore) },
-                isSelected = currentRoute is BackupAndRestore,
-            )
-
-            PreferenceCategory(
+                iconRes = R.drawable.backup_restore,
+                route = BackupAndRestore,
+                selected = currentRoute is BackupAndRestore,
+            ),
+            DashItem(
                 label = stringResource(R.string.about_label),
                 description = aboutDescrption,
-                iconResource = R.drawable.ic_about,
-                onNavigate = { onNavigate(About) },
-                isSelected = currentRoute is About,
-            )
-        }
+                iconRes = R.drawable.ic_about,
+                route = About,
+                selected = currentRoute is About,
+            ),
+        )
+
+        ExpressiveGroup(items = groupMain, colorOffset = 0, onNavigate = onNavigate)
+        Spacer(modifier = Modifier.height(12.dp))
+        ExpressiveGroup(items = groupLayout, colorOffset = 3, onNavigate = onNavigate)
+        Spacer(modifier = Modifier.height(12.dp))
+        ExpressiveGroup(items = groupBehavior, colorOffset = 1, onNavigate = onNavigate)
+        Spacer(modifier = Modifier.height(12.dp))
+        ExpressiveGroup(items = groupOther, colorOffset = 2, onNavigate = onNavigate)
     }
 }
 
