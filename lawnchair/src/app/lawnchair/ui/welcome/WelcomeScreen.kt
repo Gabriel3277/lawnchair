@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,12 +81,23 @@ fun showWelcomeIfFirstRun(activity: Activity) {
     if (sp.getBoolean(KEY_SEEN, false)) return
     val view = ComposeView(activity)
     view.setContent {
-        WelcomeScreen(
-            onContinue = {
-                sp.edit().putBoolean(KEY_SEEN, true).apply()
-                (view.parent as? ViewGroup)?.removeView(view)
-            },
-        )
+        var loading by remember { mutableStateOf(false) }
+        if (loading) {
+            // Depois do botão: tela inteira com blur + indicador de carregamento (20s)
+            ExpressiveLoadingOverlay(
+                durationMs = 20_000L,
+                onFinished = {
+                    (view.parent as? ViewGroup)?.removeView(view)
+                },
+            )
+        } else {
+            WelcomeScreen(
+                onContinue = {
+                    sp.edit().putBoolean(KEY_SEEN, true).apply()
+                    loading = true
+                },
+            )
+        }
     }
     activity.addContentView(
         view,
