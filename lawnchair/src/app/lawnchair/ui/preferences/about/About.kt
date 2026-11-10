@@ -34,6 +34,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +60,8 @@ import app.lawnchair.ui.preferences.components.layout.PreferenceGroupItem
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayoutLazyColumn
 import app.lawnchair.ui.preferences.components.layout.preferenceGroupItems
 import app.lawnchair.ui.preferences.navigation.AboutLicenses
+import app.lawnchair.ui.welcome.findActivityOrNull
+import app.lawnchair.ui.welcome.showWelcomeNow
 import com.android.launcher3.BuildConfig
 import com.android.launcher3.R
 import kotlinx.coroutines.launch
@@ -76,6 +80,10 @@ fun About(
     val scope = rememberCoroutineScope()
 
     val prefs: PreferenceManager = PreferenceManager.getInstance(context)
+
+    // 5 toques seguidos no ícone abrem a tela de boas-vindas + carregamento
+    var logoTaps by remember { mutableIntStateOf(0) }
+    var lastLogoTap by remember { mutableLongStateOf(0L) }
 
     if (openBottomSheet) {
         val updateState = uiState.updateState
@@ -116,7 +124,18 @@ fun About(
                     contentDescription = null,
                     modifier = Modifier
                         .size(72.dp)
-                        .clip(CircleShape),
+                        .clip(CircleShape)
+                        .combinedClickable(
+                            onClick = {
+                                val now = System.currentTimeMillis()
+                                logoTaps = if (now - lastLogoTap > 1500L) 1 else logoTaps + 1
+                                lastLogoTap = now
+                                if (logoTaps >= 5) {
+                                    logoTaps = 0
+                                    context.findActivityOrNull()?.let { showWelcomeNow(it) }
+                                }
+                            },
+                        ),
                 )
             }
         }
